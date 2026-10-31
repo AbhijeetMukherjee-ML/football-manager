@@ -1,0 +1,44 @@
+{
+  "name": "football-manager",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build && node scripts/prepare-standalone.js",
+    "start": "next start",
+    "lint": "eslint",
+    "db:migrate": "tsc src/db/migrate.ts --outDir .next/db-cli --module commonjs --target es2022 --moduleResolution node --esModuleInterop && node .next/db-cli/db/migrate.js && rm -rf .next/db-cli",
+    "db:seed": "tsc src/db/seed.ts --outDir .next/db-cli --module commonjs --target es2022 --moduleResolution node --esModuleInterop && node .next/db-cli/db/seed.js && rm -rf .next/db-cli",
+    "db:reset": "tsc src/db/seed.ts --outDir .next/db-cli --module commonjs --target es2022 --moduleResolution node --esModuleInterop && node .next/db-cli/db/seed.js --reset && rm -rf .next/db-cli",
+    "db:setup": "npm run db:migrate && npm run db:seed",
+    "desktop:build": "tsc -p desktop/tsconfig.json",
+    "desktop:dev": "npm run desktop:build && electron .next/desktop/main.js",
+    "desktop:prod": "npm run desktop:build && cross-env NODE_ENV=production DESKTOP_MODE=production electron .next/desktop/main.js",
+    "test": "tsc --rootDir . src/engine/__tests__/matchEngine.test.ts src/components/match-viewer/__tests__/matchVisualizer.test.ts src/db/__tests__/persistence.test.ts src/db/__tests__/sqlitePersistence.test.ts desktop/__tests__/desktopLauncher.test.ts --outDir .next/test-dist --module commonjs --target es2022 --moduleResolution node --esModuleInterop && node --test .next/test-dist/src/engine/__tests__/matchEngine.test.js .next/test-dist/src/components/match-viewer/__tests__/matchVisualizer.test.js .next/test-dist/src/db/__tests__/persistence.test.js .next/test-dist/src/db/__tests__/sqlitePersistence.test.js .next/test-dist/desktop/__tests__/desktopLauncher.test.js && rm -rf .next/test-dist"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
+    "@types/three": "^0.186.0",
+    "better-sqlite3": "^13.0.3",
+    "next": "16.4.2",
+    "pg": "^8.23.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "^4",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^20",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
+    "electron": "^45.2.1",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
