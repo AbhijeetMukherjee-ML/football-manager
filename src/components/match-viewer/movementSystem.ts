@@ -48,6 +48,7 @@ export interface BallPassOrder {
   elapsedSec: number;
   arcHeight: number;
   delaySec: number;
+  receiverPlayerId?: string;
 }
 
 export interface BallKinematicsState {
@@ -56,6 +57,7 @@ export interface BallKinematicsState {
   rotation3D: PitchVector3;
   radius: number;
   activePass: BallPassOrder | null;
+  carrierPlayerId?: string | null;
 }
 
 export interface DemoPhaseInfo {
@@ -287,9 +289,35 @@ function stepPlayerKinematics(player: PlayerKinematicsState, dt: number): void {
 /**
  * Advances the ball's position and rolling rotation by `dt` seconds.
  */
-function stepBallKinematics(ball: BallKinematicsState, dt: number): void {
+function stepBallKinematics(
+  ball: BallKinematicsState,
+  dt: number,
+  players?: Map<string, PlayerKinematicsState>
+): void {
   const pass = ball.activePass;
-  if (!pass) return;
+  if (!pass) {
+    if (ball.carrierPlayerId && players) {
+      const carrier = players.get(ball.carrierPlayerId);
+      if (carrier) {
+        const footDist = 0.45;
+        const targetX = carrier.position3D.x + Math.sin(carrier.rotationY) * footDist;
+        const targetZ = carrier.position3D.z + Math.cos(carrier.rotationY) * footDist;
+        const clamped = clampToPitchBounds(targetX, targetZ, 0.2);
+
+        const moveDx = clamped.x - ball.position3D.x;
+        const moveDz = clamped.z - ball.position3D.z;
+
+        ball.position3D.x = clamped.x;
+        ball.position3D.y = ball.radius;
+        ball.position3D.z = clamped.z;
+
+        const rollFactor = 1 / Math.max(0.15, ball.radius);
+        ball.rotation3D.x += moveDz * rollFactor;
+        ball.rotation3D.z -= moveDx * rollFactor;
+      }
+    }
+    return;
+  }
 
   if (pass.delaySec > 0) {
     pass.delaySec = Math.max(0, pass.delaySec - dt);
@@ -299,8 +327,8 @@ function stepBallKinematics(ball: BallKinematicsState, dt: number): void {
   pass.elapsedSec = Math.min(pass.durationSec, pass.elapsedSec + dt);
   const rawProgress = pass.elapsedSec / pass.durationSec;
 
-  // Smooth ease-out so ground passes start crisp and settle naturally at receiver's feet
-  const eased = 1 - Math.pow(1 - rawProgress, 1.65);
+  const p = Math.max(0, Math.min(1, rawProgress));
+  const eased = p * (2 - p);
 
   const nextX = pass.fromX + (pass.toX - pass.fromX) * eased;
   const nextZ = pass.fromZ + (pass.toZ - pass.fromZ) * eased;
@@ -312,14 +340,12 @@ function stepBallKinematics(ball: BallKinematicsState, dt: number): void {
   ball.position3D.x = clamped.x;
   ball.position3D.z = clamped.z;
 
-  // Parabolic vertical lift only when arcHeight > 0; otherwise smooth ground roll
   const liftY =
     pass.arcHeight > 0
-      ? 4 * pass.arcHeight * rawProgress * (1 - rawProgress)
+      ? 4 * pass.arcHeight * p * (1 - p)
       : 0;
   ball.position3D.y = ball.radius + liftY;
 
-  // Realistic rolling spin along direction of travel
   const rollFactor = 1 / Math.max(0.15, ball.radius);
   ball.rotation3D.x += moveDz * rollFactor;
   ball.rotation3D.z -= moveDx * rollFactor;
@@ -327,6 +353,9 @@ function stepBallKinematics(ball: BallKinematicsState, dt: number): void {
   if (rawProgress >= 1) {
     ball.position3D.y = ball.radius;
     ball.activePass = null;
+    if (pass.receiverPlayerId) {
+      ball.carrierPlayerId = pass.receiverPlayerId;
+    }
   }
 }
 
@@ -393,6 +422,7 @@ const DEMO_CYCLE_STEPS: DemoChoreographyStep[] = [
         fromPosition: { x: 0, z: 0 },
         arcHeight: 0,
         delaySec: 0.15,
+        receiverPlayerId: "p-06",
       });
     },
   },
@@ -428,6 +458,7 @@ const DEMO_CYCLE_STEPS: DemoChoreographyStep[] = [
       passBall(ctrl, { x: -22.0, z: 23.8 }, 1.65, {
         arcHeight: 0,
         delaySec: 0.35,
+        receiverPlayerId: "p-02",
       });
     },
   },
@@ -468,6 +499,7 @@ const DEMO_CYCLE_STEPS: DemoChoreographyStep[] = [
       passBall(ctrl, { x: -7.8, z: 11.0 }, 1.5, {
         arcHeight: 0,
         delaySec: 0.35,
+        receiverPlayerId: "p-07",
       });
     },
   },
@@ -503,6 +535,7 @@ const DEMO_CYCLE_STEPS: DemoChoreographyStep[] = [
       passBall(ctrl, { x: -4.2, z: -10.0 }, 1.55, {
         arcHeight: 0,
         delaySec: 0.35,
+        receiverPlayerId: "p-08",
       });
     },
   },
@@ -533,6 +566,7 @@ const DEMO_CYCLE_STEPS: DemoChoreographyStep[] = [
       passBall(ctrl, { x: 8.2, z: -21.8 }, 1.75, {
         arcHeight: 1.15,
         delaySec: 0.35,
+        receiverPlayerId: "p-09",
       });
     },
   },
@@ -552,6 +586,7 @@ const DEMO_CYCLE_STEPS: DemoChoreographyStep[] = [
       passBall(ctrl, { x: 0, z: 0 }, 2.2, {
         arcHeight: 0.35,
         delaySec: 0.3,
+        receiverPlayerId: "p-11",
       });
     },
   },
@@ -686,7 +721,7 @@ export function stepPitchMovementSystem(
       stepPlayerKinematics(player, FIXED_TIMESTEP_SEC);
     }
 
-    stepBallKinematics(controller.ball, FIXED_TIMESTEP_SEC);
+    stepBallKinematics(controller.ball, FIXED_TIMESTEP_SEC, controller.players);
   }
 
   return demoStepChanged;
