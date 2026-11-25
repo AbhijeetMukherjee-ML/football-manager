@@ -180,15 +180,18 @@ export function returnPlayerToFormation(
  * position to `toPosition` over `durationSec` seconds.
  * Supports ground passes (arcHeight = 0) and clean low-lofted passes (arcHeight > 0).
  */
+export interface BallPassOptions {
+  fromPosition?: { x: number; z: number };
+  arcHeight?: number;
+  delaySec?: number;
+  receiverPlayerId?: string;
+}
+
 export function passBall(
   controller: PitchMovementController,
   toPosition: { x: number; z: number },
   durationSec: number,
-  options?: {
-    fromPosition?: { x: number; z: number };
-    arcHeight?: number;
-    delaySec?: number;
-  }
+  options?: BallPassOptions
 ): void {
   const fromClamped = options?.fromPosition
     ? clampToPitchBounds(options.fromPosition.x, options.fromPosition.z, 0.3)
@@ -198,6 +201,7 @@ export function passBall(
       };
   const toClamped = clampToPitchBounds(toPosition.x, toPosition.z, 0.3);
 
+  controller.ball.carrierPlayerId = null;
   controller.ball.activePass = {
     fromX: fromClamped.x,
     fromZ: fromClamped.z,
@@ -207,6 +211,7 @@ export function passBall(
     elapsedSec: 0,
     arcHeight: Math.max(0, options?.arcHeight ?? 0),
     delaySec: Math.max(0, options?.delaySec ?? 0),
+    receiverPlayerId: options?.receiverPlayerId,
   };
 }
 
