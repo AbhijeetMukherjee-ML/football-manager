@@ -203,8 +203,8 @@ function computeSynchronizedSpeed(
     targetX - p.position3D.x,
     targetZ - p.position3D.z
   );
-  const baseSpeed = dist / Math.max(0.14, windowSec);
-  return Math.max(12, Math.min(60, baseSpeed)) * speedScale;
+  const baseSpeed = dist / Math.max(0.12, windowSec);
+  return Math.max(14, baseSpeed) * speedScale;
 }
 
 /**
@@ -243,23 +243,6 @@ function positionActorForAction(
     p.rotationY = facingY;
     p.activeTarget = null;
     return;
-  }
-
-  // For open-play actions where the actor is far away due to 15s tick compression,
-  // pull them within striking/passing range and glide them onto the spot.
-  if (dist > 7.5) {
-    const angle = Math.atan2(
-      p.position3D.z - clampedSpot.z,
-      p.position3D.x - clampedSpot.x
-    );
-    p.position3D.x = clampToPitchBounds(
-      clampedSpot.x + Math.cos(angle) * 3.2,
-      clampedSpot.z
-    ).x;
-    p.position3D.z = clampToPitchBounds(
-      clampedSpot.x,
-      clampedSpot.z + Math.sin(angle) * 3.2
-    ).z;
   }
 
   setPlayerTarget(
@@ -428,17 +411,24 @@ export function applyMatchEventTo3D(
       registerActive(event.playerId);
       registerActive(event.secondaryPlayerId);
 
-      const dur = passDuration(0.34);
+      // Identify passer on pitch
+      const passer = event.playerId
+        ? controller.players.get(event.playerId)
+        : undefined;
 
-      // Orient and position the passer at the current ball origin facing the pass target
-      if (event.playerId && controller.players.has(event.playerId)) {
-        positionActorForAction(
-          controller,
-          event.playerId,
-          currentBallPos,
-          { x: loc3D.x, z: loc3D.z },
-          false,
-          speedScale
+      // Pass starts from passer's feet if available, or current ball position
+      const passOrigin = passer
+        ? { x: passer.position3D.x, z: passer.position3D.z }
+        : currentBallPos;
+
+      // Orient passer towards the pass target
+      if (passer) {
+        passer.rotationY = computeFacingAngle(
+          passOrigin.x,
+          passOrigin.z,
+          loc3D.x,
+          loc3D.z,
+          passer.rotationY
         );
       }
 
@@ -459,7 +449,7 @@ export function applyMatchEventTo3D(
           event.secondaryPlayerId,
           loc3D.x,
           loc3D.z,
-          0.28,
+          0.32,
           speedScale
         );
         setPlayerTarget(
@@ -471,15 +461,19 @@ export function applyMatchEventTo3D(
       }
 
       const dist = Math.hypot(
-        loc3D.x - currentBallPos.x,
-        loc3D.z - currentBallPos.z
+        loc3D.x - passOrigin.x,
+        loc3D.z - passOrigin.z
       );
+      // Scale duration smoothly with distance within the tick window
+      const basePassSec = Math.max(0.34, Math.min(0.43, 0.32 + dist * 0.005));
+      const dur = passDuration(basePassSec);
       const isLongPass = dist > 22 || event.type === "attack";
       const arcHeight = isLongPass ? Math.min(1.6, dist * 0.04) : 0.14;
 
       passBall(controller, { x: loc3D.x, z: loc3D.z }, dur, {
-        fromPosition: currentBallPos,
+        fromPosition: passOrigin,
         arcHeight,
+        receiverPlayerId: event.secondaryPlayerId,
       });
       break;
     }
@@ -543,6 +537,7 @@ export function applyMatchEventTo3D(
       passBall(controller, { x: loc3D.x, z: loc3D.z }, passDuration(0.28), {
         fromPosition: currentBallPos,
         arcHeight: 0.2,
+        receiverPlayerId: event.playerId,
       });
       break;
     }
@@ -662,6 +657,7 @@ export function applyMatchEventTo3D(
       passBall(controller, { x: saveX, z: saveZ }, passDuration(0.32), {
         fromPosition: { x: loc3D.x, z: loc3D.z },
         arcHeight: 0.65,
+        receiverPlayerId: event.playerId,
       });
       break;
     }
